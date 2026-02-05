@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>The Long Escape</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #000;
+    color: #d9d9d9;
+    font-family: "Courier New", monospace;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+  .container {
+    max-width: 750px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #050505;
+    border-radius: 10px;
+    box-shadow: 0 0 25px #000;
+    animation: flicker 6s infinite;
+    position: relative;
+  }
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    92% { opacity: 0.8; }
+    95% { opacity: 0.4; }
+    97% { opacity: 0.9; }
+  }
+  h1, h2 {
+    text-align: center;
+    text-shadow: 0 0 10px #ff0000;
+  }
+  p, blockquote, pre {
+    line-height: 1.5;
+  }
+  blockquote {
+    border-left: 3px solid #660000;
+    padding-left: 10px;
+    color: #ffcccc;
+  }
+  input {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    border: none;
+    border-radius: 5px;
+    background: #111;
+    color: #fff;
+  }
+  button {
+    margin-top: 10px;
+    width: 100%;
+    padding: 10px;
+    background: #660000;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #990000;
+  }
+  .feedback {
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  .error {
+    color: #ff4d4d;
+  }
+  .success {
+    color: #4dff88;
+  }
+  .glitch {
+    animation: glitch 0.3s infinite;
+  }
+  @keyframes glitch {
+    0% { text-shadow: 2px 0 red; }
+    20% { text-shadow: -2px 0 lime; }
+    40% { text-shadow: 2px 2px blue; }
+    60% { text-shadow: -2px -2px red; }
+    80% { text-shadow: 2px -2px lime; }
+    100% { text-shadow: -2px 2px blue; }
+  }
+  .entity {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+    font-size: 11px;
+    color: #550000;
+    opacity: 0.2;
+    pointer-events: none;
+    white-space: pre;
+  }
+  .entity.close {
+    opacity: 0.7;
+    color: #ff0000;
+  }
+  .error-screen {
+    position: fixed;
+    inset: 0;
+    background: #000022;
+    color: #c0c0ff;
+    font-family: monospace;
+    display: none;
+    padding: 40px;
+    z-index: 9999;
+  }
+  .error-screen.visible {
+    display: block;
+  }
+  .secret-hint {
+    font-size: 11px;
+    color: #333;
+    text-align: center;
+    margin-top: 10px;
+  }
+  .level-index {
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    margin-top: 5px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Ambient audio (optional: replace src with your own file) -->
+<audio id="ambience" loop>
+  <!-- <source src="your-audio-file.mp3" type="audio/mpeg"> -->
+</audio>
+
+<div class="container">
+  <h1 class="glitch">THE LONG ESCAPE</h1>
+  <p style="text-align:center;">You should not have opened this.</p>
+
+  <div id="game">
+    <div class="level-index" id="levelIndex"></div>
+    <h2 id="levelTitle"></h2>
+    <div id="levelText"></div>
+    <input id="answerInput" placeholder="Your answer...">
+    <button id="submitBtn">Submit</button>
+    <p id="feedback" class="feedback"></p>
+    <p class="secret-hint">It reads everything you type.</p>
+  </div>
+
+  <div id="complete" style="display:none;">
+    <h2>You Escaped…</h2>
+    <p>The last door opens. Cold air rushes past you.</p>
+    <p>Something crossed the threshold with you.</p>
+    <p>It knows your screen. It knows your timing. It will wait.</p>
+  </div>
+
+  <div id="secret" style="display:none;">
+    <h2>Secret Level — It Found You</h2>
+    <p>The lights go out. The room is gone.  
+    There is only the screen. And it.</p>
+    <p>Text appears, not typed by you:</p>
+    <blockquote>
+      “You tried to hide from me.  
+      You typed my favorite word.  
+      You invited me in.”
+    </blockquote>
+    <p>The cursor blinks, waiting for you to say anything.</p>
+    <input id="secretInput" placeholder="Say something...">
+    <button onclick="secretReply()">Speak</button>
+    <p id="secretFeedback" class="feedback"></p>
+  </div>
+</div>
+
+<!-- ENTITY IN CORNER -->
+<div id="entity" class="entity">
+  .
+</div>
+
+<!-- FAKE ERROR SCREEN -->
+<div id="errorScreen" class="error-screen">
+  <h2>FATAL ERROR</h2>
+  <p>SYSTEM PROCESS: THE_LONG_ESCAPE.EXE</p>
+  <p>STATUS: CORRUPTED</p>
+  <p>DETAILS: It got out.</p>
+  <p>Attempting recovery...</p>
+</div>
+
+<script>
+let currentLevel = 0;
+let entityStage = 0;
+let secretTriggered = false;
+
+// LEVEL DATA (50 levels) — with lore + variety
+const levels = [
+  {
+    title: "Level 1 — The Whispering Dark",
+    text: `
+      <p>The room is silent. Too silent.  
+      A voice you cannot locate whispers directly into your thoughts:</p>
+      <blockquote>“I speak without a mouth… you know me.”</blockquote>
+      <p>It feels like it already knows your answer.</p>
+    `,
+    answer: "echo"
+  },
+  {
+    title: "Level 2 — Something Watches",
+    text: `
+      <p>You feel eyes on you.  
+      Four doors appear, but one of them… moves when you’re not looking.</p>
+      <blockquote>
+        “Face the rising sun.  
+        Turn left.  
+        Ignore the first door you see.  
+        Choose the next.”
+      </blockquote>
+      <p>Type a direction.</p>
+    `,
+    answer: "north"
+  },
+  {
+    title: "Level 3 — The Breathing Walls",
+    text: `
+      <p>The walls pulse like lungs.  
+      A message is carved in something that still looks wet:</p>
+      <pre style="background:#111;padding:10px;border-radius:5px;">
+20 8 5   11 5 25   9 19   3 8 1 15 19
+      </pre>
+      <p>1 = A, 2 = B, 3 = C...</p>
+    `,
+    answer: "the key is chaos"
+  },
+  {
+    title: "Level 4 — The Door That Should Not Be",
+    text: `
+      <p>A door stands before you.  
+      It wasn’t there a second ago. You’re sure.</p>
+      <blockquote>
+        “What has cities but no houses,  
+        forests but no trees,  
+        and rivers but no water?”
+      </blockquote>
+    `,
+    answer: "map"
+  },
+  {
+    title: "Level 5 — Footsteps Behind",
+    text: `
+      <p>You walk down a narrow corridor.  
+      Footsteps echo behind you, matching your pace.</p>
+      <p>A message on the floor reads:  
+      <em>“Type the word that means the opposite of ‘exit’.”</em></p>
+    `,
+    answer: "enter"
+  },
+  {
+    title: "Level 6 — The Flickering Lights",
+    text: `
+      <p>The lights flicker overhead.  
+      For a moment, you see a shape at the end of the hall.</p>
+      <p>On the wall: <em>“Say the word that means to keep going.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 7 — The Broken Clock",
+    text: `
+      <p>A clock hangs crooked on the wall.  
+      Its hands spin too fast, then stop at nothing.</p>
+      <blockquote>“What runs but never walks?”</blockquote>
+    `,
+    answer: "time"
+  },
+  {
+    title: "Level 8 — The Mirror",
+    text: `
+      <p>A cracked mirror reflects the room, but not you.</p>
+      <p>Words appear on the glass:  
+      <em>“Type the word you see most often on doors you cannot open yet.”</em></p>
+    `,
+    answer: "locked"
+  },
+  {
+    title: "Level 9 — The Static",
+    text: `
+      <p>A TV in the corner shows only static.  
+      Hidden in the noise, a single word repeats:</p>
+      <p><em>“Type the word that means ‘help’.”</em></p>
+    `,
+    answer: "help"
+  },
+  {
+    title: "Level 10 — The Numbers",
+    text: `
+      <p>Numbers crawl across the walls:</p>
+      <pre style="background:#111;padding:10px;border-radius:5px;">
+3 15 14 20 9 14 21 5
+      </pre>
+      <p>1 = A, 2 = B, 3 = C...</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 11 — First Note",
+    text: `
+      <p>A scrap of paper lies on the floor.</p>
+      <blockquote>
+        “If you’re reading this, you’re not the first.  
+        I made it to level 23 before it noticed my name.”
+      </blockquote>
+      <p>At the bottom, a single word is underlined: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 12 — The Name It Hates",
+    text: `
+      <p>Letters drip down the wall like ink:</p>
+      <p><em>“Do not type my name.”</em></p>
+      <p>Underneath, scratched over and over: <strong>chaos</strong>.</p>
+      <p>Type anything except its name to move on.</p>
+    `,
+    answer: "anything"
+  },
+  {
+    title: "Level 13 — Wrong Answer",
+    text: `
+      <p>A sign hangs from the ceiling:  
+      <em>“You only move forward if you admit you’re wrong.”</em></p>
+      <p>Type the word you never want to say.</p>
+    `,
+    answer: "wrong"
+  },
+  {
+    title: "Level 14 — The Corridor of Doors",
+    text: `
+      <p>Hundreds of doors line the hallway.  
+      Only one is open, far away.</p>
+      <p>On the floor: <em>“If you want to reach it, you must…”</em></p>
+      <p>The rest is smeared, but one word is clear: <strong>run</strong>.</p>
+    `,
+    answer: "run"
+  },
+  {
+    title: "Level 15 — Second Note",
+    text: `
+      <p>Another note, pinned to the wall with something sharp:</p>
+      <blockquote>
+        “It pretends to be a game.  
+        Don’t let it learn your patterns.  
+        If you panic, just keep going.”
+      </blockquote>
+      <p>The last line is written in a different hand: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 16 — The Eye",
+    text: `
+      <p>You feel it staring from somewhere you can’t see.</p>
+      <p>On the wall: <em>“What do you use to see me?”</em></p>
+    `,
+    answer: "eyes"
+  },
+  {
+    title: "Level 17 — The Locked Terminal",
+    text: `
+      <p>A terminal screen glows in the dark:</p>
+      <pre style="background:#111;padding:10px;border-radius:5px;">
+ACCESS CODE: _ _ _ _
+HINT: The opposite of “open”.
+      </pre>
+    `,
+    answer: "lock"
+  },
+  {
+    title: "Level 18 — Third Note",
+    text: `
+      <p>A note is taped over a crack in the wall.</p>
+      <blockquote>
+        “If you see the error screen, don’t trust it.  
+        It’s not the system failing.  
+        It’s it laughing.”
+      </blockquote>
+      <p>Someone has added: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 19 — The Whispered Question",
+    text: `
+      <p>You hear a whisper right next to your ear:</p>
+      <blockquote>“What are you trying to do?”</blockquote>
+      <p>Type your intention in one word.</p>
+    `,
+    answer: "escape"
+  },
+  {
+    title: "Level 20 — The Door with Scratches",
+    text: `
+      <p>A metal door is covered in long, deep scratches.</p>
+      <p>Above the handle: <em>“Say the word that means you won’t stop.”</em></p>
+    `,
+    answer: "persist"
+  },
+  {
+    title: "Level 21 — Fourth Note",
+    text: `
+      <p>A note is half-burned, edges still warm.</p>
+      <blockquote>
+        “I thought if I stopped, it would lose interest.  
+        It didn’t.”
+      </blockquote>
+      <p>Only one word is untouched by the burn: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 22 — The Counting",
+    text: `
+      <p>You hear counting in the dark.  
+      It stops when you listen too hard.</p>
+      <p>On the wall: <em>“Type the number of letters in the word ‘escape’.”</em></p>
+    `,
+    answer: "6"
+  },
+  {
+    title: "Level 23 — The Name It Learned",
+    text: `
+      <p>Red text crawls across the wall:</p>
+      <blockquote>
+        “I learned the last one’s name here.  
+        I won’t learn yours if you stay quiet.”
+      </blockquote>
+      <p>Type anything except your real name.</p>
+    `,
+    answer: "anything"
+  },
+  {
+    title: "Level 24 — Fifth Note",
+    text: `
+      <p>A note is nailed to the floor.</p>
+      <blockquote>
+        “If you made it past 23, you’re already doing better than me.  
+        Don’t look behind you.”
+      </blockquote>
+      <p>At the bottom: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 25 — The Loop",
+    text: `
+      <p>The hallway looks exactly like level 1.  
+      Same walls. Same silence.</p>
+      <p>On the wall: <em>“What did you say the first time?”</em></p>
+    `,
+    answer: "echo"
+  },
+  {
+    title: "Level 26 — The Door with No Handle",
+    text: `
+      <p>A door with no handle blocks your way.</p>
+      <p>Words appear on it:  
+      <em>“Say the word that means to go on anyway.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 27 — Sixth Note",
+    text: `
+      <p>A note is crumpled in the corner.</p>
+      <blockquote>
+        “It likes repetition.  
+        It likes when you type the same word over and over.  
+        Don’t give it what it wants.”
+      </blockquote>
+      <p>Someone ignored that and wrote: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 28 — The Question It Asks Everyone",
+    text: `
+      <p>Text appears on the wall, fresh and bright:</p>
+      <blockquote>“Why are you still here?”</blockquote>
+      <p>Answer honestly in one word.</p>
+    `,
+    answer: "escape"
+  },
+  {
+    title: "Level 29 — The Corridor of Echoes",
+    text: `
+      <p>Every step you take repeats a second later.</p>
+      <p>On the wall: <em>“What did you call me?”</em></p>
+    `,
+    answer: "echo"
+  },
+  {
+    title: "Level 30 — Seventh Note",
+    text: `
+      <p>A note is pinned to the ceiling.</p>
+      <blockquote>
+        “If you see this, it’s probably already too late.  
+        But you might as well…”
+      </blockquote>
+      <p>The last word is smeared, but you know what it is: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 31 — The Long Hallway",
+    text: `
+      <p>The corridor stretches on forever.  
+      No doors. No notes. Just distance.</p>
+      <p>On the floor: <em>“Say what you’ve been doing this whole time.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 32 — The Breathing Floor",
+    text: `
+      <p>The floor rises and falls like something underneath is breathing.</p>
+      <p>On the wall: <em>“Say the word that means you won’t give up.”</em></p>
+    `,
+    answer: "persist"
+  },
+  {
+    title: "Level 33 — Eighth Note",
+    text: `
+      <p>A note is scratched directly into the wall.</p>
+      <blockquote>
+        “It’s closer now.  
+        I can hear it behind the screen.”
+      </blockquote>
+      <p>Below that: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 34 — The Question of Choice",
+    text: `
+      <p>Two words appear in front of you:  
+      <strong>stay</strong> and <strong>leave</strong>.</p>
+      <p>Type the one you really mean.</p>
+    `,
+    answer: "leave"
+  },
+  {
+    title: "Level 35 — The Door That Laughs",
+    text: `
+      <p>A door rattles as if laughing.</p>
+      <p>On it: <em>“Say the word that means you’re not done yet.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 36 — Ninth Note",
+    text: `
+      <p>A note is torn in half. You only see the bottom:</p>
+      <blockquote>
+        “...if you reach 50, tell me what’s there.”
+      </blockquote>
+      <p>Someone has written over it: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 37 — The Counting Returns",
+    text: `
+      <p>The counting returns, louder now.</p>
+      <p>On the wall: <em>“How many letters are in ‘chaos’?”</em></p>
+    `,
+    answer: "5"
+  },
+  {
+    title: "Level 38 — The Corridor of Names",
+    text: `
+      <p>Names are carved into the walls.  
+      None of them are yours. Yet.</p>
+      <p>On the floor: <em>“Type anything except your real name.”</em></p>
+    `,
+    answer: "anything"
+  },
+  {
+    title: "Level 39 — Tenth Note",
+    text: `
+      <p>A note is soaked in something dark.</p>
+      <blockquote>
+        “If it starts glitching, don’t panic.  
+        That’s just it getting excited.”
+      </blockquote>
+      <p>At the bottom: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 40 — The Door with the Eye",
+    text: `
+      <p>A door has a single eye carved into it.</p>
+      <p>On the frame: <em>“What do you use to see me?”</em></p>
+    `,
+    answer: "eyes"
+  },
+  {
+    title: "Level 41 — The Final Corridor (Almost)",
+    text: `
+      <p>The corridor narrows. The air is heavy.</p>
+      <p>On the wall: <em>“You’re almost there. Say it.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 42 — Eleventh Note",
+    text: `
+      <p>A note is pressed flat under glass.</p>
+      <blockquote>
+        “If you made it this far, you’re stubborn.  
+        It likes that.”
+      </blockquote>
+      <p>Below: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 43 — The Question It Never Answers",
+    text: `
+      <p>Text appears on the wall:</p>
+      <blockquote>“What am I?”</blockquote>
+      <p>Type what you think it is.</p>
+    `,
+    answer: "echo"
+  },
+  {
+    title: "Level 44 — The Door That Waits",
+    text: `
+      <p>A door stands open, waiting.</p>
+      <p>On the floor: <em>“If you want to step through, say it.”</em></p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 45 — Twelfth Note",
+    text: `
+      <p>A note is burned into the wall itself.</p>
+      <blockquote>
+        “If you see this, you’re almost free.  
+        Or it’s almost free.  
+        One of you is.”
+      </blockquote>
+      <p>Last word: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 46 — The Heavy Door",
+    text: `
+      <p>A massive door blocks your way.</p>
+      <p>On it: <em>“Say the word that means you won’t stop now.”</em></p>
+    `,
+    answer: "persist"
+  },
+  {
+    title: "Level 47 — The Quiet",
+    text: `
+      <p>Everything is quiet. Too quiet again.</p>
+      <p>On the wall: <em>“What have you been trying to do this whole time?”</em></p>
+    `,
+    answer: "escape"
+  },
+  {
+    title: "Level 48 — Thirteenth Note",
+    text: `
+      <p>The last note you find:</p>
+      <blockquote>
+        “If you reach the end, don’t look back.  
+        It hates that.”
+      </blockquote>
+      <p>Someone added, shakily: <strong>continue</strong>.</p>
+    `,
+    answer: "continue"
+  },
+  {
+    title: "Level 49 — The Final Question",
+    text: `
+      <p>Text appears, larger than before:</p>
+      <blockquote>“Do you really want to leave?”</blockquote>
+      <p>Answer honestly: yes or no.</p>
+    `,
+    answer: "yes"
+  },
+  {
+    title: "Level 50 — The Last Door",
+    text: `
+      <p>The last door stands in front of you.</p>
+      <p>On it: <em>“Say the word you’ve used more than any other.”</em></p>
+    `,
+    answer: "continue"
+  }
+];
+
+// Try to start ambience on first interaction
+document.addEventListener('click', () => {
+  const audio = document.getElementById('ambience');
+  if (audio && audio.paused) {
+    audio.volume = 0.4;
+    audio.play().catch(() => {});
+  }
+}, { once: true });
+
+// SECRET WORD LISTENER (global)
+document.addEventListener('input', (ev) => {
+  const v = (ev.target.value || "").toLowerCase();
+  if (!secretTriggered && v.includes("secret")) {
+    secretTriggered = true;
+    fakeErrorThenSecret();
+  }
+});
+
+function renderLevel() {
+  const level = levels[currentLevel];
+  const titleEl = document.getElementById('levelTitle');
+  const textEl = document.getElementById('levelText');
+  const indexEl = document.getElementById('levelIndex');
+  const feedback = document.getElementById('feedback');
+  const input = document.getElementById('answerInput');
+
+  if (!level) {
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('complete').style.display = 'block';
+    moveEntityCloser(true);
+    return;
+  }
+
+  indexEl.textContent = `Level ${currentLevel + 1} / ${levels.length}`;
+  titleEl.innerHTML = level.title;
+  textEl.innerHTML = level.text;
+  feedback.textContent = "";
+  feedback.className = "feedback";
+  input.value = "";
+  input.focus();
+
+  moveEntityCloser();
+}
+
+function moveEntityCloser(final = false) {
+  const e = document.getElementById('entity');
+  if (final) {
+    e.textContent = "👁";
+    e.classList.add('close');
+    return;
+  }
+  entityStage++;
+  if (entityStage === 1) {
+    e.textContent = "..";
+  } else if (entityStage === 2) {
+    e.textContent = "…";
+  } else if (entityStage === 3) {
+    e.textContent = "👁";
+  } else if (entityStage >= 4) {
+    e.textContent = "👁";
+    e.classList.add('close');
+  }
+}
+
+function checkAnswer() {
+  const level = levels[currentLevel];
+  if (!level) return;
+
+  const input = document.getElementById('answerInput');
+  const fb = document.getElementById('feedback');
+  const a = input.value.trim().toLowerCase();
+
+  if (!a) {
+    fb.textContent = "It waits.";
+    fb.className = "feedback error";
+    return;
+  }
+
+  if (a === level.answer.toLowerCase()) {
+    fb.textContent = "It lets you move on.";
+    fb.className = "feedback success";
+
+    if (currentLevel === 30 || currentLevel === 45) {
+      setTimeout(() => {
+        fakeErrorThen(() => {
+          currentLevel++;
+          renderLevel();
+        });
+      }, 800);
+    } else {
+      setTimeout(() => {
+        currentLevel++;
+        renderLevel();
+      }, 800);
+    }
+  } else {
+    fb.textContent = "It leans closer.";
+    fb.className = "feedback error";
+  }
+}
+
+document.getElementById('submitBtn').addEventListener('click', checkAnswer);
+document.getElementById('answerInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') checkAnswer();
+});
+
+function fakeErrorThen(callback) {
+  const err = document.getElementById('errorScreen');
+  err.classList.add('visible');
+  setTimeout(() => {
+    err.classList.remove('visible');
+    callback();
+  }, 2500);
+}
+
+function fakeErrorThenSecret() {
+  const err = document.getElementById('errorScreen');
+  err.classList.add('visible');
+  setTimeout(() => {
+    err.classList.remove('visible');
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('complete').style.display = 'none';
+    document.getElementById('secret').style.display = 'block';
+    moveEntityCloser(true);
+  }, 2500);
+}
+
+function secretReply() {
+  const input = document.getElementById('secretInput');
+  const fb = document.getElementById('secretFeedback');
+  const text = input.value.trim();
+  if (!text) {
+    fb.textContent = "It waits.";
+    fb.className = "feedback error";
+    return;
+  }
+  fb.textContent = "It repeats your words back to you, but not here.";
+  fb.className = "feedback success";
+}
+
+// Start
+renderLevel();
+</script>
+
+</body>
+</html>
