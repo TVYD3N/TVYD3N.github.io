@@ -127,6 +127,14 @@
 </style>
 </head>
 <body>
+</style>
+</head>
+<body>
+
+<!-- Background ambience -->
+<audio id="ambience" loop>
+  <source src="darkroom.mp3" type="audio/mpeg">
+</audio>
 
 <!-- Ambient + sting audio -->
 <audio id="ambience" loop>
@@ -886,7 +894,15 @@ function secretReply() {
 
 // Start
 renderLevel();
-</script>
+ // Start ambience on first click
+document.addEventListener('click', () => {
+  const audio = document.getElementById('ambience');
+  if (audio && audio.paused) {
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  }
+}, { once: true });
 
+</script>
 </body>
 </html>
