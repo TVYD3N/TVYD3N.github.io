@@ -128,10 +128,24 @@
 </head>
 <body>
 
-<!-- Ambient audio (optional: replace src with your own file) -->
+<!-- Ambient + sting audio -->
 <audio id="ambience" loop>
-  <!-- <source src="your-audio-file.mp3" type="audio/mpeg"> -->
+  <source src="ambient.mp3" type="audio/mpeg">
 </audio>
+
+<audio id="sting">
+  <source src="sting.mp3" type="audio/mpeg">
+</audio>
+
+<!-- Flash overlay -->
+<div id="flash" style="
+  position:fixed;
+  inset:0;
+  background:red;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.1s;
+"></div>
 
 <div class="container">
   <h1 class="glitch">THE LONG ESCAPE</h1>
@@ -189,6 +203,38 @@
 let currentLevel = 0;
 let entityStage = 0;
 let secretTriggered = false;
+
+// Start ambience on first click
+document.addEventListener('click', () => {
+  const audio = document.getElementById('ambience');
+  if (audio && audio.paused) {
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  }
+}, { once: true });
+
+// Play scare stinger
+function playSting() {
+  const s = document.getElementById('sting');
+  if (!s) return;
+  s.volume = 0.6;
+  s.currentTime = 0;
+  s.play().catch(() => {});
+}
+
+// Flash screen
+function flashScreen() {
+  const f = document.getElementById('flash');
+  if (!f) return;
+  f.style.opacity = 1;
+  setTimeout(() => f.style.opacity = 0, 100);
+}
+
+// Combined scare moment
+function scareMoment() {
+  flashScreen();
+  playSting();
+}
 
 // LEVEL DATA (50 levels) — with lore + variety
 const levels = [
@@ -698,15 +744,6 @@ HINT: The opposite of “open”.
   }
 ];
 
-// Try to start ambience on first interaction
-document.addEventListener('click', () => {
-  const audio = document.getElementById('ambience');
-  if (audio && audio.paused) {
-    audio.volume = 0.4;
-    audio.play().catch(() => {});
-  }
-}, { once: true });
-
 // SECRET WORD LISTENER (global)
 document.addEventListener('input', (ev) => {
   const v = (ev.target.value || "").toLowerCase();
@@ -740,6 +777,11 @@ function renderLevel() {
   input.focus();
 
   moveEntityCloser();
+
+  // Scare on specific levels (7, 13, 23, 30, 45) -> indices 6,12,22,29,44
+  if ([6, 12, 22, 29, 44].includes(currentLevel)) {
+    setTimeout(() => scareMoment(), 500);
+  }
 }
 
 function moveEntityCloser(final = false) {
@@ -796,6 +838,8 @@ function checkAnswer() {
   } else {
     fb.textContent = "It leans closer.";
     fb.className = "feedback error";
+    // Scare on wrong answers
+    scareMoment();
   }
 }
 
@@ -807,6 +851,7 @@ document.getElementById('answerInput').addEventListener('keydown', (e) => {
 function fakeErrorThen(callback) {
   const err = document.getElementById('errorScreen');
   err.classList.add('visible');
+  playSting();
   setTimeout(() => {
     err.classList.remove('visible');
     callback();
@@ -816,6 +861,7 @@ function fakeErrorThen(callback) {
 function fakeErrorThenSecret() {
   const err = document.getElementById('errorScreen');
   err.classList.add('visible');
+  playSting();
   setTimeout(() => {
     err.classList.remove('visible');
     document.getElementById('game').style.display = 'none';
